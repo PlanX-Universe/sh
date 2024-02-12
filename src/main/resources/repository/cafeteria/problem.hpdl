@@ -1,0 +1,92 @@
+(define (problem exemplary-problem)
+ (:domain cafeteria)
+ (:requirements :strips :typing)
+ (:objects
+     s1 - room
+     a1 a2 a3 a4 a5 a6 - area
+     s1a4 s1a8 s1b6 s1b10 s1c4 s1d2 s1d6 s1d10 s1e4 s1f6 s1f10 s1g4 s1h2 s1h6 s1h10 - regularLamp
+     s1b2 s1c8 s1e8 s1f2 s1g8 - securityLamp
+ )
+ (:init
+     (in a1 s1)
+     (in a2 s1)
+     (in a3 s1)
+     (in a4 s1)
+     (in a5 s1)
+     (in a6 s1)
+
+     (in s1a4 a1)
+     (in s1b2 a1)
+     (in s1c4 a1)
+     (in s1d2 a1)
+     (in s1e4 a1)
+     (in s1f2 a1)
+
+     (in s1g4 a2)
+     (in s1h2 a2)
+     (in s1h6 a2)
+
+     (in s1a8 a3)
+     (in s1b6 a3)
+     (in s1b10 a3)
+
+     (in s1c8 a4)
+     (in s1d6 a4)
+     (in s1d10 a4)
+
+     (in s1e8 a5)
+     (in s1f6 a5)
+     (in s1f10 a5)
+
+     (in s1g8 a6)
+     (in s1h10 a6)
+
+     (near-by s1g4 a1)
+     (near-by s1f2 a2)
+     (near-by s1f6 a2)
+
+     (near-by s1a4 a3)
+     (near-by s1c4 a3)
+     (near-by s1c8 a3)
+
+     (near-by s1b10 a4)
+     (near-by s1b6 a4)
+     (near-by s1c4 a4)
+     (near-by s1e4 a4)
+     (near-by s1e8 a4)
+
+     (near-by s1d10 a5)
+     (near-by s1d6 a5)
+     (near-by s1e4 a5)
+     (near-by s1g4 a5)
+     (near-by s1g8 a5)
+
+     (near-by s1f10 a6)
+     (near-by s1f6 a6)
+     (near-by s1h6 a6)
+
+     ; security lamps
+     (turned s1b2)
+     (turned s1c8)
+     (turned s1e8)
+     (turned s1f2)
+     (turned s1g8)
+
+     ; regular lamps
+     ;(turned s1h2)
+     (turned s1g4)
+     ;(turned s1h6)
+
+     (presence a5)
+     (presence a2)
+
+     (= (light-level a1) 240)
+     (= (light-level a2) 290)
+     (= (light-level a3) 300)
+     (= (light-level a4) 260)
+     (= (light-level a5) 290)
+     (= (light-level a6) 300)
+ )
+
+ (:goal-tasks (sequence (adjust s1)))
+)

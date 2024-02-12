@@ -1,0 +1,195 @@
+; This 'rover' domain deals with exploring a planet via multiple rovers.
+; The rovers navigate through various locations, collect rock and soil samples, and take pictures of target objects.
+; Getting rock or soil samples consists of navigating to the location of the data,
+; emptying the store of the rover, taking the sample, and navigating to a location from which the lander is visible,
+; and lastly, communicate the collected data to a lander.
+; Getting images consists of camera calibration, navigating to a location from which the target is visible,
+; capturing the image, and lastly, relaying the image to the lander by navigating to a location
+; from which the lander is visible and transmitting the image to it.
+; More information about the 'rover' domain can be found in:
+; Alnazer, E., Georgievski, I., and Aiello, M. On Bringing HTN Domains Closer to Reality - The Case of Satellite and Rover Domains. In International Conference on Automated Planning Systems (ICAPS) Workshop on Scheduling and Planning Applications (SPARK), 2022.
+; This domain is based on the 'rover' domain encoding provided in the JSHOP2 distribution.
+
+(define (domain rover)
+ (:requirements :strips :typing)
+ (:types rover waypoint store lander objective camera mode)
+ (:predicates
+     (canTraverse ?x ?y ?z)
+     (available ?x)
+     (at ?x ?y)
+     (visible ?x ?y)
+     (atSoilSample ?p)
+     (equippedForSoilAnalysis ?x)
+	 (storeOf ?s ?x)
+     (empty ?s)
+     (haveSoilAnalysis ?x ?p)
+     (full ?s)
+     (atRockSample ?p)
+	 (equippedForRockAnalysis ?x)
+	 (haveRockAnalysis ?x ?p)
+     (equippedForImaging ?r)
+     (calibrationTarget ?i ?t)
+     (visibleFrom ?t ?w)
+	 (onBoard ?i ?r)
+	 (supports ?i ?m)
+	 (haveImage ?r ?o ?m)
+	 (calibrated ?i ?r)
+	 (atLander ?l ?y)
+	 (channelFree ?l)
+	 (communicatedSoilData ?p)
+	 (communicatedRockData ?p)
+	 (communicatedImageData ?o ?m)
+ )
+
+ (:action navigate
+     :parameters (?x - rover ?y ?z - waypoint)
+     :precondition (and (canTraverse ?x ?y ?z) (available ?x)
+	 				    (at ?x ?y) (visible ?y ?z))
+     :effect (and (not (at ?x ?y)) (at ?x ?z))
+ )
+ (:action sample-soil
+     :parameters (?x - rover ?s - store ?p - waypoint)
+     :precondition (and (at ?x ?p) (atSoilSample ?p) (equippedForSoilAnalysis ?x)
+                        (storeOf ?s ?x) (empty ?s))
+     :effect (and (not (empty ?s)) (not (atSoilSample ?p))
+                  (full ?s) (haveSoilAnalysis ?x ?p))
+ )
+ (:action sample-rock
+     :parameters (?x - rover ?s - store ?p - waypoint)
+     :precondition (and (at ?x ?p) (atRockSample ?p) (equippedForRockAnalysis ?x)
+                        (storeOf ?s ?x) (empty ?s))
+     :effect (and (not (empty ?s)) (not (atRockSample ?p))
+                  (full ?s) (haveRockAnalysis ?x ?p))
+ )
+ (:action drop
+     :parameters (?x - rover ?y - store)
+     :precondition (and (storeOf ?y ?x) (full ?y))
+     :effect (and (not (full ?y)) (empty ?y))
+ )
+ (:action calibrate
+     :parameters (?r - rover ?i - camera ?t - objective ?w - waypoint)
+     :precondition (and (equippedForImaging ?r) (calibrationTarget ?i ?t)
+                        (at ?r ?w) (visibleFrom ?t ?w) (onBoard ?i ?r))
+     :effect (calibrated ?i ?r)
+ )
+ (:action take-image
+     :parameters (?r - rover ?p - waypoint ?o - objective ?i - camera ?m - mode)
+     :precondition (and (calibrated ?i ?r) (onBoard ?i ?r) (equippedForImaging ?r) (supports ?i ?m)
+                        (visibleFrom ?o ?p) (at ?r ?p))
+     :effect (and (not (calibrated ?i ?r)) (haveImage ?r ?o ?m))
+ )
+ (:action communicate-soil-data
+     :parameters (?r - rover ?l - lander ?p ?x ?y - waypoint)
+     :precondition (and (at ?r ?x) (atLander ?l ?y) (haveSoilAnalysis ?r ?p)
+	                    (visible ?x ?y) (available ?r) (channelFree ?l))
+     :effect (and (not (available ?r)) (not (channelFree ?l))
+                  (channelFree ?l) (communicatedSoilData ?p) (available ?r))
+ )
+ (:action communicate-rock-data
+     :parameters (?r - rover ?l - lander ?p ?x ?y - waypoint)
+     :precondition (and (at ?r ?x) (atLander ?l ?y) (haveRockAnalysis ?r ?p)
+	                    (visible ?x ?y) (available ?r) (channelFree ?l))
+     :effect (and (not (available ?r)) (not (channelFree ?l))
+                  (channelFree ?l) (communicatedRockData ?p) (available ?r))
+ )
+ (:action communicate-image-data
+     :parameters (?r - rover ?l - lander ?o - objective ?m - mode ?x ?y - waypoint)
+     :precondition (and (at ?r ?x) (atLander ?l ?y) (haveImage ?r ?o ?m)
+                        (visible ?x ?y) (available ?r) (channelFree ?l))
+     :effect (and (not (available ?r)) (not (channelFree ?l))
+                  (channelFree ?l) (communicatedImageData ?o ?m) (available ?r))
+ )
+ (:action visit
+     :parameters (?waypoint - waypoint)
+     :precondition (not (visited ?waypoint))
+     :effect (visited ?waypoint)
+ )
+ (:action unvisit
+     :parameters (?waypoint - waypoint)
+     :precondition (visited ?waypoint)
+     :effect (not (visited ?waypoint))
+ )
+
+ (:task empty-store
+     :parameters (?s - store ?rover - rover)
+     (:method store-already-empty
+         :precondition (empty ?s)
+         :tasks ()
+     )
+     (:method one-way-to-empty
+         :precondition ()
+         :tasks (sequence (drop ?rover ?s))
+     )
+ )
+ (:task navigate-mm
+     :parameters (?rover - rover ?from - waypoint ?to - waypoint)
+     (:method rover-already-there
+         :precondition (at ?rover ?to)
+         :tasks ()
+     )
+	 (:method navigate-only-once
+	     :precondition (canTraverse ?rover ?from ?to)
+         :tasks (sequence (navigate ?rover ?from ?to))
+     )
+     (:method navigate-recursively
+	     :precondition (and (waypoint ?mid) (canTraverse ?rover ?from ?mid) (not (visited ?mid)))
+         :tasks (sequence (navigate ?rover ?from ?mid) (visit ?mid) (navigate-mm ?rover ?mid ?to) (unvisit ?mid))
+	 )
+ )
+ (:task navigate-m
+     :parameters (?rover - rover ?to - waypoint)
+     (:method navigate-with-mm
+         :precondition (at ?rover ?from)
+         :tasks (sequence (visit ?from) (navigate-mm ?rover ?from ?to) (unvisit ?from))
+     )
+ )
+ (:task send-soil-data
+     :parameters (?rover - rover ?waypoint - waypoint)
+     (:method one-way-to-send-soil
+         :precondition (and (lander ?l) (atLander ?l ?y) (visible ?x ?y))
+         :tasks (sequence (navigate-m ?rover ?x) (communicate-soil-data ?rover ?l ?waypoint ?x ?y))
+	 )
+ )
+ (:task get-soil-data
+     :parameters (?waypoint - waypoint)
+     (:method one-way-to-get-soil
+         :precondition (and (rover ?rover) (storeOf ?s ?rover) (equippedForSoilAnalysis ?rover))
+         :tasks (sequence (navigate-m ?rover ?waypoint) (empty-store ?s ?rover) (sample-soil ?rover ?s ?waypoint) (send-soil-data ?rover ?waypoint))
+     )
+ )
+ (:task send-rock-data
+     :parameters (?rover - rover ?waypoint - waypoint)
+	 (:method one-way-to-send-rock
+      :precondition (and (lander ?l) (atLander ?l ?y) (visible ?x ?y))
+      :tasks (sequence (navigate-m ?rover ?x) (communicate-rock-data ?rover ?l ?waypoint ?x ?y))
+	 )
+ )
+ (:task get-rock-data
+     :parameters (?waypoint - waypoint)
+     (:method one-way-to-get-rock
+         :precondition (and (rover ?rover) (equippedForRockAnalysis ?rover) (storeOf ?s ?rover))
+         :tasks (sequence (navigate-m ?rover ?waypoint) (empty-store ?s ?rover) (sample-rock ?rover ?s ?waypoint) (send-rock-data ?rover ?waypoint))
+     )
+ )
+ (:task send-image-data
+     :parameters (?rover - rover ?objective - objective ?mode - mode)
+     (:method one-way-to-send-image
+         :precondition (and (lander ?l) (atLander ?l ?y) (visible ?x ?y))
+	     :tasks (sequence (navigate-m ?rover ?x) (communicate-image-data ?rover ?l ?objective ?mode ?x ?y))
+	 )
+ )
+ (:task get-image-data
+     :parameters (?objective - objective ?mode - mode)
+     (:method one-way-to-get-image
+         :precondition (and (equippedForImaging ?rover) (onBoard ?camera ?rover) (supports ?camera ?mode) (visibleFrom ?objective ?waypoint))
+         :tasks (sequence (calibrate-m ?rover ?camera) (navigate-m ?rover ?waypoint) (take-image ?rover ?waypoint ?objective ?camera ?mode) (send-image-data ?rover ?objective ?mode))
+	 )
+ )
+ (:task calibrate-m
+     :parameters (?rover - rover ?camera - camera)
+     (:method one-way-to-calibrate
+         :precondition (and (calibrationTarget ?camera ?objective) (visibleFrom ?objective ?waypoint))
+         :tasks (sequence (navigate-m ?rover ?waypoint) (calibrate ?rover ?camera ?objective ?waypoint))
+     )
+ )
+)

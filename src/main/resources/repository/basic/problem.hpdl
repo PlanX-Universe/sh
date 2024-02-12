@@ -1,0 +1,9 @@
+(define (problem exemplary-problem)
+ (:domain basic)
+ (:requirements :strips)
+ (:objects kiwi banjo - thing)
+ (:init
+     (have kiwi)
+ )
+ (:goal-tasks (sequence (swap banjo kiwi)))
+)

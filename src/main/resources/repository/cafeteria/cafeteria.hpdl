@@ -1,0 +1,218 @@
+; This 'Cafeteria' domain is dedicated to coordinating ceiling lamps
+; given the presence and absence activities of cafeteria occupants and the natural light level.
+; This domain is a real-world domain designed and developed for a cafeteria at the Bernolliborg building
+; of the University of Groningen.
+; The domain has been used for more than 18 months to control the lights of the cafeteria.
+; The cafeteria is an open space divided in two sections by construction. We make use of this division in the domain design.
+; Detailed information about the domain design choices and cafeteria can be found in:
+; Georgievski, I., Nguyen, T. A., Nizamic, F., Setz, B., Lazovik, A., and Aiello, M. Planning meets activity recognition: Service coordination for intelligent buildings. Pervasive and Mobile Computing, 38(1): 110–139. 2017.
+
+(define (domain cafeteria)
+ (:requirements :strips :typing :negative-preconditions :numeric-fluents :conditional-effects)
+ (:types
+     regularLamp securityLamp - lamp
+     room area - location
+ )
+
+ (:predicates
+     ;(on ?r - room ?f - floor)
+	 (in ?a - area ?r - room)
+	 (in ?l - lamp ?a - area)
+	 (near-by ?l - lamp ?a - area)
+	 (checked ?l - lamp ?a - area)
+	 (checked ?a - area)
+	 (turned ?l - lamp)
+     (presence ?a - area)
+ )
+
+ (:functions
+     (natural-light-level ?a - area)
+	 (light-level ?a - area)
+ )
+
+ (:action turn-on-lamp
+     :parameters (?l - regularLamp)
+	 :precondition (not (turned ?l))
+	 :effect (and (turned ?l))
+ )
+
+ (:action turn-off-lamp
+     :parameters (?l - regularLamp)
+	 :precondition (turned ?l)
+	 :effect (and (not (turned ?l)))
+ )
+
+ (:action bk-check
+     :parameters (?l - regularLamp ?a - area)
+     :precondition ()
+     :effect (and (checked ?l ?a))
+ )
+
+ (:action bk-check-area
+     :parameters (?a - area)
+     :precondition ()
+     :effect (and (checked ?a))
+ )
+
+ (:action bk-uncheck-lamps
+     :parameters (?a - area)
+     :precondition ()
+     :effect (forall (?l - regularLamp) (when (checked ?l ?a) (not (checked ?l ?a))))
+ )
+
+ (:action bk-increase-direct
+     :parameters (?a - area)
+     :precondition ()
+     :effect (increase (light-level ?a) 25)
+ )
+
+ (:action bk-increase-near-by
+     :parameters (?a - area)
+     :precondition ()
+     :effect (increase (light-level ?a) 15)
+ )
+
+ (:action bk-decrease-direct
+     :parameters (?a - area)
+     :precondition()
+     :effect (decrease (light-level ?a) 25)
+ )
+
+ (:action bk-decrease-near-by
+     :parameters (?a - area)
+     :precondition()
+     :effect (decrease (light-level ?a) 15)
+ )
+
+ (:task turn-on-lamps
+     :parameters (?a - area)
+     (:method lamp-to-turn-on
+         :precondition (and (in ?l ?a) (not (turned ?l)) (regularLamp ?l))
+         :tasks (sequence (turn-on-lamp ?l) (bk-increase-direct ?a) (turn-on-lamps ?a))
+     )
+     (:method no-more-lamps
+         :precondition ()
+         :tasks ()
+     )
+ )
+
+ (:task turn-off-lamps
+     :parameters (?a - area)
+     (:method lamp-to-turn-off
+         :precondition (and (in ?l ?a) (turned ?l) (not (securityLamp ?l)) (near-by ?l ?a1) (checked ?a1) (not (checked ?l ?a)) (presence ?a1))
+         :tasks (sequence (bk-check ?l ?a) (turn-off-lamps ?a))
+     )
+     (:method lamp-to-turn-off
+         :precondition (and (in ?l ?a) (turned ?l) (not (securityLamp ?l)) (not (checked ?l ?a)))
+         :tasks (sequence (turn-off-lamp ?l) (bk-check ?l ?a) (bk-decrease-direct ?a) (turn-off-lamps ?a))
+     )
+     (:method no-more-lamps
+         :precondition ()
+         :tasks (sequence (bk-uncheck-lamps ?a))
+     )
+ )
+
+ (:task adjust
+     :parameters (?r - room)
+     (:method adjust-area-for-presence
+         :precondition (and (in ?a ?r) (presence ?a) (not (checked ?a)))
+         :tasks (sequence (adjust-for-presence ?a) (bk-check-area ?a) (adjust ?r))
+     )
+     (:method adjust-area-for-absence
+         :precondition (and (in ?a ?r) (not (presence ?a)) (not (checked ?a)))
+         :tasks (sequence (adjust-for-absence ?a) (bk-check-area ?a) (adjust ?r))
+     )
+     (:method all-areas-checked
+         :precondition ()
+         :tasks ()
+     )
+ )
+
+ (:task adjust-for-presence
+     :parameters (?a - area)
+     (:method sufficient-light-level ;[900, 1200]
+         :precondition (and (> (light-level ?a) 900) (< (light-level ?a) 1200))
+         :tasks (sequence (decrease-level ?a))
+     )
+     (:method deficient-light-level ;less than 900
+         :precondition (and (< (light-level ?a) 900))
+         :tasks (sequence (increase-level ?a))
+     )
+     (:method excess-light-level ;more than 1200
+         :precondition (and (> (light-level ?a) 1200))
+         :tasks (sequence (decrease-level ?a))
+     )
+ )
+
+ (:task adjust-for-absence
+     :parameters (?a - area)
+     (:method turn-off-all-lamps
+         :precondition ()
+         :tasks (sequence (turn-off-lamps ?a))
+     )
+ )
+
+ (:task increase-level
+     :parameters (?a - area)
+     (:method light-level-is-ok
+         :precondition (>= (light-level ?a) 900)
+         :tasks (sequence (bk-uncheck-lamps ?a))
+     )
+     (:method deficient-light-level-still-lamps-to-turned-on
+         :precondition (and (< (light-level ?a) 900) (or (in ?l ?a) (near-by ?l ?a)) (regularLamp ?l) (not (turned ?l)))
+         :tasks (sequence (turn-on-lamp ?l) (adjust-light-level-by-increasing ?l) (increase-level ?a))
+     )
+     (:method deficient-light-level-but-all-lamps-turned-on
+        :precondition () ;and (< (light-level ?a) 900) (forall (?l - regularLamp) (and (or (in ?l ?a) (near-by ?l ?a)) (turned ?l))))
+        :tasks (sequence (bk-uncheck-lamps ?a))
+     )
+ )
+
+ (:task decrease-level
+     :parameters (?a - area)
+     ;(:method light-level-is-ok
+         ;:precondition (and (>= (light-level ?a) 400) (<= (light-level ?a) 400))
+         ;:tasks (sequence (bk-uncheck-lamps ?a))
+     ;)
+     (:method sufficient-light-level-still-lamps-to-turned-off
+         :precondition (and (> (light-level ?a) 900) (or (in ?l ?a) (near-by ?l ?a)) (regularLamp ?l) (turned ?l))
+         :tasks (sequence (turn-off-lamp ?l) (adjust-light-level-by-decreasing ?l) (decrease-level ?a))
+     )
+     (:method excess-light-level-but-all-lamps-turned-off
+         :precondition ();and (> (light-level ?a) 900) (forall (?l - regularLamp) (and (or (in ?l ?a) (near-by ?l ?a)) (not (turned ?l)))))
+         :tasks (sequence (bk-uncheck-lamps ?a))
+     )
+ )
+
+ (:task adjust-light-level-by-increasing
+     :parameters (?l - regularLamp)
+     (:method lamp-belongs-directly-to-an-area
+         :precondition (and (in ?l ?a) (not (checked ?l ?a)))
+         :tasks (sequence (bk-increase-direct ?a) (bk-check ?l ?a) (adjust-light-level-by-increasing ?l))
+     )
+     (:method lamp-is-near-by-other-areas
+         :precondition (and (near-by ?l ?a) (not (checked ?l ?a)))
+         :tasks (sequence (bk-increase-near-by ?a) (bk-check ?l ?a) (adjust-light-level-by-increasing ?l))
+     )
+     (:method all-done
+         :precondition ()
+         :tasks ()
+     )
+ )
+
+ (:task adjust-light-level-by-decreasing
+     :parameters (?l - regularLamp)
+     (:method lamp-belongs-directly-to-an-area
+         :precondition (and (in ?l ?a) (not (checked ?l ?a)))
+         :tasks (sequence (bk-decrease-direct ?a) (bk-check ?l ?a) (adjust-light-level-by-decreasing ?l))
+     )
+     (:method lamp-is-near-by-other-areas
+         :precondition (and (near-by ?l ?a) (not (checked ?l ?a)))
+         :tasks (sequence (bk-decrease-near-by ?a) (bk-check ?l ?a) (adjust-light-level-by-decreasing ?l))
+     )
+     (:method all-done
+         :precondition ()
+         :tasks ()
+     )
+ )
+)

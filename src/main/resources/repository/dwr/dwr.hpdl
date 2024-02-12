@@ -1,0 +1,107 @@
+; This 'dwr' or Dock-Worker Robots domain is another classical planning domain.
+; A robot can move and carry containers, and cranes can lift and put down containers.
+; Locations contain piles that can hold containers.
+; The goal is to place containers on piles.
+; More information on the 'dwr' domain can be found in:
+; Nau, D., Ghallab, M., and Traverso, P. 2004. Automated Planning: Theory & Practice. San Francisco, CA, USA: Morgan Kaufmann Publishers Inc.
+
+(define (domain dwr)
+ (:requirements :typing :strips)
+ (:types location container robot krane pile)
+ (:predicates
+     (adjacent ?one ?two)
+     (ar ?r ?l)
+     (occupied ?l)
+     ;(unoccupied ?l)
+     (belong ?k ?l)
+     (attached ?p ?l)
+     (empty ?k)
+     (top ?c ?p)
+     (on ?c ?d)
+     (holding ?k ?c)
+     (in ?c ?p)
+     ;(unloaded ?r ?c)
+     (loaded ?r ?c)
+ )
+
+ (:action move
+     :parameters (?r - robot ?l ?m - location)
+     :precondition (and (adjacent ?l ?m) (at ?r ?l) (not (occupied ?m)))
+     :effect (and (not (occupied ?m)) (not (at ?r ?l)) (not (occupied ?l))
+                  (at ?r ?m) (occupied ?m))
+ )
+
+ (:action take
+     :parameters (?k - krane ?l - location ?c - container ?d - object ?p - pile)
+     :precondition (and (belong ?k ?l) (attached ?p ?l) (empty ?k) (top ?c ?p) (on ?c ?d))
+     :effect (and (not (empty ?k)) (not (in ?c ?p)) (not (top ?c ?p)) (not (on ?c ?d))
+                  (holding ?k ?c) (top ?d ?p))
+ )
+
+ (:action load
+     :parameters (?k - krane ?l - location ?c - container ?r - robot)
+     :precondition (and (belong ?k ?l) (holding ?k ?c) (at ?r ?l) (not (loaded ?r ?c)))
+     :effect (and (not (holding ?k ?c)) (empty ?k) (loaded ?r ?c))
+ )
+
+ (:action unload
+     :parameters (?k - krane ?l - location ?c - container ?p - pile ?r - robot)
+     :precondition (and (belong ?k ?l) (at ?r ?l) (loaded ?r ?c) (empty ?k))
+     :effect (and (not (empty ?k)) (not (loaded ?r ?c)) (holding ?k ?c))
+ )
+
+ (:action put
+     :parameters (?k - krane ?l - location ?c - container ?d - object ?p - pile)
+     :precondition (and (belong ?k ?l) (attached ?p ?l) (holding ?k ?c) (top ?d ?p))
+     :effect (and (not (holding ?k ?c)) (not (top ?d ?p))
+                  (empty ?k) (in ?c ?p) (top ?c ?p) (on ?c ?d))
+ )
+
+ (:task move-robot
+     :parameters (?r - robot ?loc1 ?loc2 - location)
+     (:method not-there
+         :precondition (and (at ?r ?loc1))
+         :tasks (sequence (move ?r ?loc1 ?loc2))
+     )
+     (:method already-there
+         :precondition (and (at ?r ?loc2))
+         :tasks ()
+     )
+ )
+
+ (:task setup
+     :parameters (?c - container ?r - robot)
+     (:method one-way-to-setup
+         :precondition (and (on ?c ?d) (in ?c ?p) (belong ?k ?l) (attached ?p ?l))
+         :tasks (sequence (take ?k ?l ?c ?d ?p) (load ?k ?l ?c ?r))
+     )
+ )
+
+ (:task finish
+     :parameters (?c - container ?r - robot ?l - location)
+     (:method one-way-to-finish
+         :precondition (and (attached ?p ?l) (loaded ?r ?c) (top ?d ?p) (belong ?k ?l) (at ?r ?l))
+         :tasks (sequence (unload ?k ?l ?c ?p ?r) (put ?k ?l ?c ?d ?p))
+     )
+ )
+
+ (:task transfer-one-container
+      :parameters (?c - container ?loc1 ?loc2 - location ?r - robot)
+      (:method robot-at-second-loc
+          :precondition (and (adjacent ?loc1 ?loc2) (at ?r ?loc1))
+          :tasks (sequence (setup ?c ?r) (move-robot ?r ?loc1 ?loc2) (finish ?c ?r ?loc2))
+      )
+      (:method robot-at-first-loc
+          :precondition (and (adjacent ?loc2 ?loc1) (at ?r ?loc2))
+          :tasks (sequence (move-robot ?r ?loc2 ?loc1) (setup ?c ?r) (move-robot ?r ?loc1 ?loc2) (finish ?c ?r ?loc2))
+      )
+ )
+
+ (:task transfer-two-containers
+     :parameters (?c1 ?c2 - container ?loc1 ?loc2 - location ?r - robot)
+     (:method only-one-case
+         :precondition ()
+         :tasks (sequence (transfer-one-container ?c1 ?loc1 ?loc2 ?r) (transfer-one-container ?c2 ?loc1 ?loc2 ?r))
+     )
+ )
+)

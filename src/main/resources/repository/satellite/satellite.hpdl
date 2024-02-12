@@ -1,0 +1,120 @@
+; This 'satellite' domain models a NASA space application,
+; where satellites have missions of making observations
+; by taking images of various spatial phenomena in varying signal frequencies.
+; Each satellite is equipped with observation instruments,
+; each of which supports specific modes with defined calibration targets (directions).
+; Accomplishing missions involves preparing a satellite and then taking an image.
+; Preparing the satellite involves two tasks.
+; The first task is achieved by routing energy to an instrument
+; while ensuring only one instrument is powered on a particular satellite
+; and then properly calibrating the instrument.
+; The second task is achieved by turning the satellite to the direction of the phenomenon to be captured.
+; Taking an image is an action that can be executed directly.
+; More information about the 'satellite' domain can be found in:
+; Alnazer, E., Georgievski, I., and Aiello, M. On Bringing HTN Domains Closer to Reality - The Case of Satellite and Rover Domains. In International Conference on Automated Planning Systems (ICAPS) Workshop on Scheduling and Planning Applications (SPARK), 2022.
+; The domain is based on the 'Satellite-GTOHP' domain encoding available in https://github.com/panda-planner-dev/ipc2020-domains/blob/master/total-order/Satellite-GTOHP/domain.hddl
+
+(define (domain satellite)
+ (:requirements :typing :negative-preconditions :equality)
+ (:types satellite direction instrument mode)
+ (:predicates
+     (on_board ?i - instrument ?s - satellite)
+     (supports ?i - instrument ?m - mode)
+     (pointing ?s - satellite ?d - direction)
+     (power_avail ?s - satellite)
+     (power_on ?i - instrument)
+     (calibrated ?i - instrument)
+     (have_image ?d - direction ?m - mode)
+     (calibration_target ?i - instrument ?d - direction)
+ )
+
+ (:action turn_to
+     :parameters (?s - satellite ?d_new - direction ?d_prev - direction)
+     :precondition (and (pointing ?s ?d_prev) (not (= ?d_new ?d_prev)))
+     :effect (and (pointing ?s ?d_new) (not (pointing ?s ?d_prev)))
+ )
+ (:action switch_on
+     :parameters (?i - instrument ?s - satellite)
+     :precondition (and (on_board ?i ?s) (power_avail ?s))
+     :effect (and (power_on ?i) (not (calibrated ?i)) (not (power_avail ?s)))
+ )
+ (:action switch_off
+     :parameters (?i - instrument ?s - satellite)
+     :precondition (and (on_board ?i ?s) (power_on ?i))
+     :effect (and (not (power_on ?i)) (power_avail ?s))
+ )
+ (:action calibrate
+     :parameters (?s - satellite ?i - instrument ?d - direction)
+     :precondition (and (on_board ?i ?s) (calibration_target ?i ?d) (pointing ?s ?d) (power_on ?i))
+     :effect (calibrated ?i)
+ )
+ (:action take_image
+     :parameters (?s - satellite ?d - direction ?i - instrument ?m - mode)
+     :precondition (and (calibrated ?i) (on_board ?i ?s) (supports ?i ?m) (power_on ?i) (pointing ?s ?d))
+     :effect (have_image ?d ?m)
+ )
+ (:action bk-nop
+     :parameters ()
+     :precondition ()
+     :effect ()
+ )
+
+ (:task do_mission
+     :parameters (?d - direction ?m - mode)
+     (:method m0_do_mission
+         :precondition (and (satellite ?s) (instrument ?i))
+         :tasks (sequence (do_prepare ?s ?i ?d) (take_image ?s ?d ?i ?m))
+     )
+ )
+ (:task do_prepare
+     :parameters (?s - satellite ?i - instrument ?d - direction)
+     (:method m1_do_prepare
+         :precondition ()
+         :tasks (sequence (do_switching ?s ?i) (do_turning ?s ?d))
+     )
+ )
+ (:task do_switching
+     :parameters (?s - satellite ?i - instrument)
+     (:method m4_do_switching
+         :precondition (and (power_on ?i))
+         :tasks (sequence (bk-nop))
+     )
+     (:method m2_do_switching
+         :precondition (and (on_board ?i ?s) (instrument ?other_i) (on_board ?other_i ?s) (not (power_avail ?s)) (direction ?d))
+         :tasks (sequence (make_power_available ?s ?other_i) (switch_on ?i ?s) (do_calibration ?s ?i ?d))
+     )
+     (:method m3_do_switching
+         :precondition (and (on_board ?i ?s) (power_avail ?s) (direction ?d))
+         :tasks (sequence (switch_on ?i ?s) (do_calibration ?s ?i ?d))
+     )
+ )
+ (:task do_calibration
+     :parameters (?s - satellite ?i - instrument ?d - direction)
+     (:method m5_do_calibration
+         :precondition (and (not (calibrated ?i)))
+         :tasks (sequence (do_prepare ?s ?i ?d) (calibrate ?s ?i ?d))
+     )
+     (:method m6_do_calibration
+         :precondition (and (calibrated ?i))
+         :tasks (sequence (bk-nop))
+     )
+ )
+ (:task make_power_available
+     :parameters (?s - satellite ?other_i - instrument)
+     (:method m7_make_power_available
+         :precondition (and (power_on ?other_i) (not (power_avail ?s)))
+         :tasks (sequence (switch_off ?other_i ?s))
+     )
+ )
+ (:task do_turning
+     :parameters (?s - satellite ?d - direction)
+     (:method m8_do_turning
+         :precondition (and (direction ?other_d) (pointing ?s ?other_d) (not (pointing ?s ?d)))
+         :tasks (sequence (turn_to ?s ?d ?other_d))
+     )
+     (:method m9_do_turning
+         :precondition (and (pointing ?s ?d))
+         :tasks (sequence (bk-nop))
+     )
+ )
+)

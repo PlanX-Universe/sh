@@ -1,0 +1,97 @@
+; This 'blocksworld' domain is a representation of the classical planning domain for the blocks world.
+; The objective is to construct one or more stacks of blocks.
+; During this process, only one block may be moved at any given time,
+; with options to place it either on the table or on top of another block.
+; Blocks that are under another block cannot be moved.
+; A robotic arm is used for manipulating a block.
+; This encoding is based on the Blocksworld-GTOHP encoding: https://github.com/panda-planner-dev/ipc2020-domains/tree/master/total-order/Blocksworld-GTOHP
+
+(define (domain blocksworld)
+ (:requirements :negative-preconditions :typing)
+ (:types block)
+ (:predicates
+     (on ?x - block ?y - block)
+     (ontable ?x - block)
+     (clear ?x - block)
+     (handempty)
+     (holding ?x - block)
+ )
+
+ (:action pick-up
+     :parameters (?x - block)
+     :precondition (and (clear ?x) (ontable ?x) (handempty))
+     :effect (and (not (ontable ?x)) (not (clear ?x)) (not (handempty)) (holding ?x))
+ )
+
+ (:action put-down
+     :parameters (?x - block)
+     :precondition (holding ?x)
+     :effect (and (not (holding ?x)) (clear ?x) (handempty) (ontable ?x))
+ )
+
+ (:action stack
+     :parameters (?x - block ?y - block)
+     :precondition (and (holding ?x) (clear ?y))
+     :effect (and (not (holding ?x)) (not (clear ?y)) (clear ?x) (handempty) (on ?x ?y))
+ )
+
+ (:action unstack
+     :parameters (?x - block ?y - block)
+     :precondition (and (on ?x ?y) (clear ?x) (handempty))
+     :effect (and (holding ?x) (clear ?y) (not (clear ?x)) (not (handempty)) (not (on ?x ?y)))
+ )
+
+ (:action bk-nop
+     :parameters ()
+     :precondition ()
+     :effect ()
+ )
+
+ (:task do_put_on
+     :parameters (?x - block ?y - block)
+     (:method m0_do_put_on
+         :precondition (and (on ?x ?y))
+         :tasks (sequence (bk-nop))
+     )
+     (:method m1_do_put_on
+         :precondition (and (handempty))
+         :tasks (sequence (do_clear ?x) (do_clear ?y) (do_on_table ?y) (do_move ?x ?y))
+     )
+ )
+
+ (:task do_on_table
+     :parameters (?x - block)
+     (:method m3_do_on_table
+         :precondition (and (clear ?x))
+         :tasks (sequence (bk-nop))
+     )
+     (:method m2_do_on_table
+         :precondition (and (clear ?x) (handempty) (not (ontable ?x)) (block ?y) (on ?x ?y))
+         :tasks (sequence (unstack ?x ?y) (put-down ?x))
+     )
+ )
+
+ (:task do_move
+     :parameters (?x - block ?y - block)
+     (:method m4_do_move
+         :precondition (and (clear ?x) (clear ?y) (handempty) (ontable ?x))
+         :tasks (sequence (pick-up ?x) (stack ?x ?y))
+     )
+     (:method m5_do_move
+         :precondition (and (clear ?x) (clear ?y) (handempty) (not (ontable ?x)) (block ?z))
+         :tasks (sequence (unstack ?x ?z) (stack ?x ?y))
+     )
+ )
+
+ (:task do_clear
+      :parameters (?x - block)
+      (:method m6_do_clear
+          :precondition (and (clear ?x))
+          :tasks (sequence (bk-nop))
+      )
+      (:method m7_do_clear
+          :precondition (and (not (clear ?x)) (block ?y) (on ?y ?x) (handempty))
+          :tasks (sequence (do_clear ?y) (unstack ?y ?x) (put-down ?y))
+      )
+ )
+)

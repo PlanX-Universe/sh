@@ -1,0 +1,17 @@
+(define (problem dashboard-example) (:domain deployment)
+(:requirements :strips :equality :typing :negative-preconditions :universal-preconditions :fluents)
+(:objects
+   dashboard cassandra apache2 - component
+   httpd cass cass-up - port
+)
+(:init
+   (installed-require dashboard httpd)
+   (running-require dashboard httpd)
+   (running-require dashboard cass-up)
+   (installed-provide apache2 httpd)
+   (installed-provide cassandra cass)
+   (running-provide cassandra cass-up)
+   (= (instance-number) 0)
+)
+(:goal-tasks (sequence (run-configuration dashboard)))
+)

@@ -1,0 +1,58 @@
+; This 'forall' domain is used to demonstrate the use of 'forall' constructs
+; both in logical expressions and action effects.
+; The domain is based on the 'forallexample' domain provided in the JSHOP2 distribution.
+
+(define (domain foralldomain)
+ (:requirements :strips :typing)
+ (:types package truck city)
+ (:predicates
+     (in ?z ?t)
+     (truck-at ?t ?x)
+     (at ?z ?y)
+ )
+
+ ; To load a package ?z in a truck ?t
+ (:action load
+     :parameters (?z - package ?t - truck)
+	 :precondition ()
+	 :effect (in ?z ?t)
+ )
+
+ ; To move a truck ?t from city ?x to city ?y
+ (:action drive
+     :parameters (?t - truck ?x ?y - city)
+     :precondition ()
+     ; The packages in the car move with it from city ?x to city ?y too, hence
+     ; the following add and delete list using forall keyword.
+     :effect (and (not (truck-at ?t ?x)) (forall (?z - package) (when (in ?z ?t) (not (at ?z ?x))))
+                  (truck-at ?t ?y) (forall (?z - package) (when (in ?z ?t) (at ?z ?y))))
+ )
+
+ ; To verify if all the packages are loaded, and if not load them. Note that
+ ; this method can be implemented much easier and more efficiently without
+ ; using the forall keyword. The use of forall here is just to show how it is
+ ; used and does not necessarily reflect the best way to implement this
+ ; or similar methods.
+ (:task load-packages
+     :parameters (?x - city ?t - truck)
+	 ; Are all the packages loaded?
+     (:method all-packages-already-loaded
+	     :precondition (forall (?z - package) (and (at ?z ?x) (in ?z ?t)))
+         :tasks ()
+	 )
+     ; If not, choose a package, load it, and recursively call the same method.
+	 (:method load-package-recursively
+         :precondition (and (package ?z) (at ?z ?x) (not (in ?z ?t)))
+         :tasks (sequence (load ?z ?t) (load-packages ?x ?t))
+	 )
+ )
+
+ ; The top-layer method to move packages from city ?x to city ?y.
+ (:task move-packages
+     :parameters (?x ?y - city)
+     (:method from-one-city-to-another
+	     :precondition (and (truck ?t) (truck-at ?t ?x))
+         :tasks (sequence (load-packages ?x ?t) (drive ?t ?x ?y))
+	 )
+ )
+)

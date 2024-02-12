@@ -1,0 +1,18 @@
+(define (problem exemplary-problem)
+ (:domain deployment)
+ (:requirements :strips)
+ (:objects
+     c0 c1 c2 - component
+     p02 p11 p21 - port
+ )
+ (:init
+     (installed-require c0 p11)
+     (installed-provide c0 p02)
+     (installed-require c1 p21)
+     (installed-provide c1 p11)
+     (running-require c1 p02)
+     (installed-provide c2 p21)
+     (= (instance-number) 0)
+ )
+ (:goal-tasks (sequence (run-configuration c1)))
+)

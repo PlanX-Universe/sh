@@ -1,0 +1,34 @@
+; This 'basic' domain that shows the most fundamental features of SH.
+; It is based on the 'basic' domain provided in the JSHOP2 distribution.
+
+(define (domain basic)
+ (:requirements :strips :typing)
+ (:types thing)
+ (:predicates
+  (have ?t - thing)
+ )
+
+ (:action pickup
+     :parameters (?pickup - thing)
+     :precondition ()
+     :effect (have ?pickup)
+ )
+
+ (:action drop
+     :parameters (?drop - thing)
+     :precondition (have ?drop)
+     :effect (not (have ?drop))
+ )
+
+ (:task swap
+     :parameters (?x - thing ?y - thing)
+     (:method have-x
+         :precondition (and (have ?x)(not (have ?y)))
+         :tasks (sequence (drop ?x) (pickup ?y))
+     )
+     (:method have-y
+         :precondition (and (have ?y)(not (have ?x)))
+         :tasks (sequence (drop ?y) (pickup ?x))
+     )
+ )
+)
