@@ -100,7 +100,7 @@ Note:
 
 ## Documentation
 
-[Link]
+[See SH's Wiki](https://github.com/PlanX-Universe/sh/wiki/)
 
 
 
