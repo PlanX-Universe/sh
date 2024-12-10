@@ -106,7 +106,7 @@ Note:
 
 ## How to Cite
 
-TBD
+Georgievski, I., Palghadmal, A. V., Alnazer, E., and Aiello, M. SH: Service-oriented HTN Planning system for real-world domains. *SoftwareX*, 27: 101779. 2024.
 
 
 
