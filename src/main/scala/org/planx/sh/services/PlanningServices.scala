@@ -60,7 +60,10 @@ object PlanningServices {
       HPDLProblemParser.processProblemStringToObject(problemToBeChecked)
       "The problem specification is correctly formulated."
     } catch {
-      case e: RuntimeException => "Processing failed. Please fix the problem string according to the HPDL syntax"
+      case e: RuntimeException =>
+        Option(e.getMessage).filter(_.nonEmpty).getOrElse(
+          "Processing failed. Please fix the problem string according to the HPDL syntax"
+        )
     }
   }
 
@@ -69,7 +72,10 @@ object PlanningServices {
       HPDLDomainParser.processDomainStringToObject(domainToBeChecked)
       "The domain specification is correctly formulated."
     } catch {
-      case e: RuntimeException => "Processing failed. Please fix the domain string according to the HPDL syntax"
+      case e: RuntimeException =>
+        Option(e.getMessage).filter(_.nonEmpty).getOrElse(
+          "Processing failed. Please fix the domain string according to the HPDL syntax"
+        )
     }
   }
 
