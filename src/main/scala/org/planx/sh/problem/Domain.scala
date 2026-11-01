@@ -31,6 +31,8 @@ case class Domain(name: String,
     coupled = coupleUncoupledTasks(uncoupledTasks)
     coupled
   }
+  // Validate predicates used throughout the domain (preconditions and effects)
+  validatePredicates()
 
   /** Creates complete methods for each task.
     * Once the domain is completely processed, that is, all operators and tasks are known,
@@ -78,7 +80,7 @@ case class Domain(name: String,
     val goalPredicates = translateToPredicates(goalTaskList)
     goalPredicates map (gp => gp map (p => findTask(p) match {
       case List() => findOperator(p) match {
-        case List() => throw new RuntimeException("The goal task " + p + " cannot be found in the domain specification.")
+        case List() => throw new RuntimeException("The " + p + " cannot be found in the domain specification.")
         case o: Operator => o(p.arguments)
       }
       case l => /*fillTask(l.head)*/l.head(p.arguments)
@@ -144,6 +146,72 @@ case class Domain(name: String,
   private def perm[T](n: Int, l: List[T]): List[List[T]] =  n match {
     case 0 => List(List())
     case _ => for(el <- l; sl <- perm(n-1, l filter (_ != el))) yield el :: sl
+  }
+
+  /** Validates that every atomic predicate used in operator preconditions/effects,
+    * method preconditions, and task lists is declared in the domain predicates,
+    * domain functions, axioms, or declared types used as unary type guards.
+    * Throws a RuntimeException with a detailed location message when an
+    * undefined predicate is found.
+    */
+  private def validatePredicates(): Unit = {
+    val validNames: Set[String] = (
+      predicates.map(_.name) ++
+      functions.map(_.name) ++
+      axioms.map(_.n) ++
+      types.map(_.name)
+    ).toSet
+
+    val validTaskRefs: Set[String] = (tasks.map(_._name) ++ operators.map(_._name)).toSet
+
+    def check(name: String, location: String): Unit = {
+      if (!validNames.contains(name))
+        throw new RuntimeException("Undefined predicate found in " + location + ": '" + name + "'")
+    }
+
+    def visitExpression(expr: Expression, location: String): Unit = expr match {
+      case atomic: ExpressionAtomic => check(atomic.predicateName, location)
+      case and: ExpressionAnd => { visitExpression(and.left, location); visitExpression(and.right, location) }
+      case not: ExpressionNot => visitExpression(not.precond, location)
+      case or: ExpressionOr => { visitExpression(or.left, location); visitExpression(or.right, location) }
+      case imply: ExpressionImply => { visitExpression(imply.first, location); visitExpression(imply.second, location) }
+      case comparison: ExpressionComparison => // comparisons don't refer to atomic predicates
+      case forall: ExpressionForall => { visitExpression(forall.firstExpr, location); visitExpression(forall.secondExpr, location) }
+      case nil: ExpressionNil => // nothing to check
+    }
+
+    def visitEffect(e: Effect, location: String): Unit = e match {
+      case Add(atom) => check(atom.name, location)
+      case Delete(atom) => check(atom.name, location)
+      case ForallEffect(expr, predicates, _) => { visitExpression(expr, location); predicates.foreach(pe => visitEffect(pe, location)) }
+      case _ => // NumericAssignment, ObjectAssignment, EmptyEffect don't contain atomic predicate names to validate here
+    }
+
+    // Check operators: preconditions and effects
+    for (op <- operators) {
+      visitExpression(op.precondition, "the precondition of operator '" + op._name + "'")
+      op.add.foreach(e => visitEffect(e, "the effect of operator '" + op._name + "'"))
+      op.delete.foreach(e => visitEffect(e, "the effect of operator '" + op._name + "'"))
+    }
+
+    // Check methods (preconditions and their task lists) for every task
+    for (t <- tasks) {
+      for (m <- t.methods) {
+        visitExpression(m.precondition, "the precondition of method '" + m.name + "' of task '" + t._name + "'")
+
+        def visitTaskList(tl: TaskList, location: String): Unit = {
+          tl.tasks.foreach {
+            case p: Predicate =>
+              if (!validTaskRefs.contains(p.name))
+                throw new RuntimeException("Undefined task found in " + location + ": '" + p.name + "'")
+            case ntl: TaskList => visitTaskList(ntl, location)
+            case _ => // other TaskUnifier types (InstanceUnifier etc.) are not atomic predicate declarations here
+          }
+        }
+
+        visitTaskList(m.taskList, "the task list of method '" + m.name + "' of task '" + t._name + "'")
+      }
+    }
   }
 
   override def toString = "Domain:\n" +
